@@ -18,6 +18,12 @@ class NumericalTransformer(BaseTransformer):
             Data type of the data to transform. It will be used when reversing the
             transformation. If not provided, the dtype of the fit data will be used.
             Defaults to ``None``.
+        max (int of float):
+            Value to represent the maximum value that this transformer can take.
+            Default is ``None``.
+        min (int or float):
+            Value to represent the minimum value that this transformer can take.
+            Default is ``None``.
         nan (int, str or None):
             Indicate what to do with the null values. If an integer is given, replace them
             with the given value. If the strings ``'mean'`` or ``'mode'`` are given, replace
@@ -33,7 +39,9 @@ class NumericalTransformer(BaseTransformer):
 
     null_transformer = None
 
-    def __init__(self, dtype=None, nan='mean', null_column=None):
+    def __init__(self, dtype=None, max=None, min=None, nan='mean', null_column=None):
+        self.max = max
+        self.min = min
         self.nan = nan
         self.null_column = null_column
         self.dtype = dtype
@@ -90,6 +98,25 @@ class NumericalTransformer(BaseTransformer):
         """
         if self.nan is not None:
             data = self.null_transformer.reverse_transform(data)
+
+        if isinstance(data, np.ndarray):
+            data = pd.Series(data)
+
+        if self.min is not None and self.max is not None:
+            mean = (self.max + self.min) / 2
+            min_values = data.where(data < mean)
+            max_values = data.where(data > mean)
+
+            data[pd.notnull(min_values)] = np.abs(self.min - min_values) + min_values
+            data[pd.notnull(max_values)] = -np.abs(self.max - max_values) + max_values
+
+        elif self.min is not None and self.max is None:
+            min_values = data.where(data < self.min)
+            data[pd.notnull(min_values)] = min_values + np.abs(self.min - min_values)
+
+        elif self.min is None and self.max is not None:
+            max_values = data.where(data > self.max)
+            data[pd.notnull(max_values)] = max_values - np.abs(self.max - max_values)
 
         if self._dtype == np.int:
             data[pd.notnull(data)] = np.round(data[pd.notnull(data)]).astype(int)
