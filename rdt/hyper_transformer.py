@@ -48,12 +48,13 @@ class HyperTransformer:
         ... }
         >>> ht = HyperTransformer(transformers)
     """
-    def __init__(self, transformers=None, copy=True, anonymize=None, dtypes=None):
+
+    _transformers = dict()
+
+    def __init__(self, transformers=None, copy=True, analyze=True):
         self.transformers = transformers
-        self._transformers = dict()
         self.copy = copy
-        self.anonymize = anonymize or dict()
-        self.dtypes = dtypes
+        self.analyze = analyze
 
     def _analyze(self, data):
         """Build a ``dict`` with column names and transformers from a given ``pandas.DataFrame``.
@@ -82,24 +83,19 @@ class HyperTransformer:
                 if a ``dtype`` is not supported by the `HyperTransformer``.
         """
         transformers = dict()
-        dtypes = self.dtypes or data.dtypes
-        if self.dtypes:
-            dtypes = self.dtypes
-        else:
-            dtypes = [
-                data[column].dropna().infer_objects()
-                for column in data.columns
-            ]
+        dtypes = {
+            column: data[column].dropna().infer_objects()
+            for column in data.columns
+        }
 
-        for name, dtype in zip(data.columns, dtypes):
+        for name, dtype in dtypes.items():
             dtype = np.dtype(dtype)
             if dtype.kind == 'i':
                 transformer = NumericalTransformer(dtype=int)
             elif dtype.kind == 'f':
                 transformer = NumericalTransformer(dtype=float)
             elif dtype.kind == 'O':
-                anonymize = self.anonymize.get(name)
-                transformer = CategoricalTransformer(anonymize=anonymize)
+                transformer = CategoricalTransformer()
             elif dtype.kind == 'b':
                 transformer = BooleanTransformer()
             elif dtype.kind == 'M':
@@ -120,8 +116,11 @@ class HyperTransformer:
         """
         if self.transformers:
             self._transformers = load_transformers(self.transformers)
-        else:
-            self._transformers = self._analyze(data)
+
+        if self.analyze:
+            analyze_columns = set(data.columns) - set(self._transformers.keys())
+            analyzed = self._analyze(data[analyze_columns])
+            self._transformers.update(analyzed)
 
         for column_name, transformer in self._transformers.items():
             column = data[column_name]

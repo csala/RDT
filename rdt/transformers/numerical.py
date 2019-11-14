@@ -33,10 +33,12 @@ class NumericalTransformer(BaseTransformer):
 
     null_transformer = None
 
-    def __init__(self, dtype=None, nan='mean', null_column=None):
+    def __init__(self, dtype=None, nan='mean', null_column=None, min=None, max=None):
         self.nan = nan
         self.null_column = null_column
         self.dtype = dtype
+        self.min = min
+        self.max = max
 
     def fit(self, data):
         """Fit the transformer to the data.
